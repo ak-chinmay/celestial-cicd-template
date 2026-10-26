@@ -40,29 +40,47 @@ jobs:
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
         run: ./ci/run smoke "$PRODUCTION_URL"
 
-      - name: Resolve notification transition
+      - name: Resolve last committed monitor state
         id: transition
         env:
           GH_TOKEN: ${{ github.token }}
           CURRENT_RESULT: ${{ steps.smoke.outcome }}
           TEST_ALERT: ${{ inputs.test_alert || 'none' }}
         run: |
-          previous=$(gh run list \
+          previous=unknown
+          while read -r run_id; do
+            state_dir="$RUNNER_TEMP/monitor-state-$run_id"
+            if gh run download "$run_id" \
+              --name celestial-monitor-state \
+              --dir "$state_dir" >/dev/null 2>&1; then
+              if [[ -f "$state_dir/state" ]]; then
+                candidate=$(<"$state_dir/state")
+                if [[ "$candidate" == "success" || "$candidate" == "failure" ]]; then
+                  previous=$candidate
+                  break
+                fi
+              fi
+            fi
+          done < <(gh run list \
             --workflow celestial-monitor.yml \
             --status completed \
-            --limit 1 \
-            --json conclusion \
-            --jq '.[0].conclusion // "unknown"')
+            --limit 20 \
+            --json databaseId \
+            --jq '.[].databaseId')
+
+          current=failure
+          [[ "$CURRENT_RESULT" == "success" ]] && current=success
           transition=none
           if [[ "$TEST_ALERT" == "failure" ]]; then
             transition=failure
           elif [[ "$TEST_ALERT" == "recovery" ]]; then
             transition=recovery
-          elif [[ "$CURRENT_RESULT" != "success" && "$previous" != "failure" ]]; then
+          elif [[ "$current" == "failure" && "$previous" != "failure" ]]; then
             transition=failure
-          elif [[ "$CURRENT_RESULT" == "success" && "$previous" == "failure" ]]; then
+          elif [[ "$current" == "success" && "$previous" == "failure" ]]; then
             transition=recovery
           fi
+          echo "current=$current" >> "$GITHUB_OUTPUT"
           echo "value=$transition" >> "$GITHUB_OUTPUT"
 
       - name: Validate Telegram access
@@ -90,6 +108,21 @@ jobs:
           MESSAGE: ✅ Production monitoring recovered for ${{ github.repository }}.
         run: python3 ci/notify.py --message "$MESSAGE"
 
+      - name: Write committed monitor state
+        if: (inputs.test_alert || 'none') == 'none'
+        run: |
+          mkdir -p "$RUNNER_TEMP/current-monitor-state"
+          echo "${{ steps.transition.outputs.current }}" > "$RUNNER_TEMP/current-monitor-state/state"
+
+      - name: Persist committed monitor state
+        if: (inputs.test_alert || 'none') == 'none'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: celestial-monitor-state
+          path: ${{ runner.temp }}/current-monitor-state/state
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Preserve monitor failure status
-        if: steps.smoke.outcome != 'success' && inputs.test_alert == 'none'
+        if: steps.smoke.outcome != 'success' && (inputs.test_alert || 'none') == 'none'
         run: exit 1

@@ -55,7 +55,17 @@ class TemplateTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: false", text)
         self.assertIn("celestial-production-${{ needs.resolve.outputs.target_sha }}", text)
         self.assertIn("git merge-base --is-ancestor", text)
+        self.assertIn('CLOUDFLARE_PRODUCTION_BRANCH', text)
+        self.assertIn('--branch "$CLOUDFLARE_PRODUCTION_BRANCH"', text)
         self.assertNotIn("pull_request_target", text)
+
+    def test_monitor_uses_committed_health_state_not_run_conclusion(self) -> None:
+        text = (ROOT / ".github/workflows/celestial-monitor.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("celestial-monitor-state", text)
+        self.assertIn("gh run download", text)
+        self.assertNotIn("--json conclusion", text)
 
     def test_static_site_adapter_builds_nonempty_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -66,6 +76,16 @@ class TemplateTests(unittest.TestCase):
             (project / "ci").mkdir()
             shutil.copy2(ROOT / "ci" / "run", project / "ci" / "run")
             os.chmod(project / "ci" / "run", 0o755)
+            (project / ".ci").mkdir()
+            shutil.copy2(ROOT / ".ci" / ".gitignore", project / ".ci" / ".gitignore")
+            subprocess.run(["git", "config", "user.name", "Template Test"], cwd=project, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "template@example.invalid"],
+                cwd=project,
+                check=True,
+            )
+            subprocess.run(["git", "add", "."], cwd=project, check=True)
+            subprocess.run(["git", "commit", "-qm", "fixture"], cwd=project, check=True)
             completed = subprocess.run(
                 [str(project / "ci" / "run"), "verify"],
                 cwd=project,
@@ -81,6 +101,58 @@ class TemplateTests(unittest.TestCase):
                 ),
                 "hello",
             )
+            status = subprocess.run(
+                ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+                cwd=project,
+                text=True,
+                stdout=subprocess.PIPE,
+                check=True,
+            )
+            self.assertEqual(status.stdout, "")
+
+    def test_requirements_validator_accepts_exact_pins_and_rejects_ranges(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            (project / "requirements.txt").write_text(
+                "requests==2.32.5\n", encoding="utf-8"
+            )
+            validator = ROOT / "ci" / "validate_requirements.py"
+            accepted = subprocess.run(
+                ["python3", str(validator), "requirements.txt"],
+                cwd=project,
+                text=True,
+                stdout=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(accepted.returncode, 0, accepted.stdout)
+            (project / "requirements.txt").write_text(
+                "requests>=2.32\n", encoding="utf-8"
+            )
+            rejected = subprocess.run(
+                ["python3", str(validator), "requirements.txt"],
+                cwd=project,
+                text=True,
+                stdout=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(rejected.returncode, 1)
+            self.assertEqual(rejected.stdout.strip(), "requirements-must-use-exact-pins")
+
+    def test_workflow_renderer_quotes_yaml_significant_branch_names(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            subprocess.run(
+                [
+                    "python3",
+                    str(ROOT / "scripts" / "render_workflow_variants.py"),
+                    temporary,
+                ],
+                check=True,
+            )
+            rendered = (Path(temporary) / "celestial-delivery-1.yml").read_text(
+                encoding="utf-8"
+            )
+            self.assertIn('- "#prod"', rendered)
+            self.assertNotIn("__CELESTIAL_DEFAULT_BRANCH__", rendered)
 
     def test_smoke_rejects_non_https_without_echoing_value(self) -> None:
         completed = subprocess.run(

@@ -56,6 +56,7 @@ verify_python_site() {
     echo "Python verification requires pinned requirements." >&2
     return 1
   fi
+  python3 ci/validate_requirements.py "$requirements"
   python3 -m pip install -r "$requirements"
   PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
   [[ -d site ]] || {

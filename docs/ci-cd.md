@@ -40,10 +40,13 @@ Repository variables:
 ```text
 PRODUCTION_URL
 CLOUDFLARE_PROJECT
+CLOUDFLARE_PRODUCTION_BRANCH
 NOTIFICATIONS_ENABLED
 MONITOR_ENABLED
 SMOKE_MARKERS
 ```
+
+`CLOUDFLARE_PRODUCTION_BRANCH` must exactly match the production branch configured for the Cloudflare Pages project. Other branch names create preview deployments.
 
 Repository secrets:
 

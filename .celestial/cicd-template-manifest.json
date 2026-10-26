@@ -2,6 +2,11 @@
   "files": [
     {
       "mode": "0644",
+      "path": ".ci/.gitignore",
+      "sha256": "240a3e0d37d2e86b614063f5347eb02d4f99ca6c254de6b82871ff8d95532a7d"
+    },
+    {
+      "mode": "0644",
       "path": ".github/pull_request_template.md",
       "sha256": "e9f15c8d0e54968d8f2fd3f1fd4e69868be68f528c04f67cde73fec4ba29e1a2"
     },
@@ -16,12 +21,12 @@
       "render": [
         "default_branch"
       ],
-      "sha256": "36e16798631784b1015b3b78664cca29199929e13e0c941d24eaea0ec449e6a2"
+      "sha256": "ff7fe71101e4e130bbeebf8348cf9bd4ad174e7ab5ab9826f958556176099c83"
     },
     {
       "mode": "0644",
       "path": ".github/workflows/celestial-monitor.yml",
-      "sha256": "7f042045724981d0bf535463c216d7f05da4b38619b2e982983df9638d9d7e63"
+      "sha256": "03d8ee5f762e7c8dfb1f7046263c2a77f07a67f0bf5664d11810071a8d23d2d0"
     },
     {
       "mode": "0644",
@@ -41,15 +46,20 @@
     {
       "mode": "0755",
       "path": "ci/run",
-      "sha256": "5dd77f35cb5d23161b541e0ee011aedde9eba0efbc98f679bf2d9a45838bb902"
+      "sha256": "d0426851717dedaac9e605b4fd1458e73b2b964c0508eaae52159c1c5348e86d"
+    },
+    {
+      "mode": "0755",
+      "path": "ci/validate_requirements.py",
+      "sha256": "a3eea52224be29990ad2117a2caec450c7aaa1c115760b1e0c01ef6687b1dcd5"
     },
     {
       "mode": "0644",
       "path": "docs/ci-cd.md",
-      "sha256": "fff57075a56deb986f815cdd7ae92ee1674e94dd1e99fb8c3fdaa3196da88d24"
+      "sha256": "69ae3dc88966448d5c2a81bc7901c38ad6795b42b9773deaa6fd57316965d2e3"
     }
   ],
   "schema_version": 1,
   "template": "celestial-cicd-template",
-  "template_version": "1.0.0"
+  "template_version": "1.0.1"
 }

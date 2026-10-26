@@ -110,9 +110,11 @@ jobs:
       - name: Validate deployment configuration
         env:
           CLOUDFLARE_PROJECT: ${{ vars.CLOUDFLARE_PROJECT }}
+          CLOUDFLARE_PRODUCTION_BRANCH: ${{ vars.CLOUDFLARE_PRODUCTION_BRANCH }}
           PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
         run: |
           [[ "$CLOUDFLARE_PROJECT" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,57}$ ]]
+          git check-ref-format --branch "$CLOUDFLARE_PRODUCTION_BRANCH" >/dev/null
           [[ "$PRODUCTION_URL" =~ ^https://[^[:space:]]+$ ]]
 
       - name: Deploy to Cloudflare Pages
@@ -120,10 +122,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_PROJECT: ${{ vars.CLOUDFLARE_PROJECT }}
+          CLOUDFLARE_PRODUCTION_BRANCH: ${{ vars.CLOUDFLARE_PRODUCTION_BRANCH }}
         run: >-
           npx --yes wrangler@4.43.0 pages deploy .ci/artifact
           --project-name "$CLOUDFLARE_PROJECT"
-          --branch production
+          --branch "$CLOUDFLARE_PRODUCTION_BRANCH"
 
       - name: Smoke-test production
         env:
@@ -140,10 +143,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check out exact notification client
+      - name: Check out trusted notification client
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.resolve.outputs.target_sha }}
 
       - name: Send bounded success notification
         env:
