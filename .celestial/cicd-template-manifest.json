@@ -1,0 +1,55 @@
+{
+  "files": [
+    {
+      "mode": "0644",
+      "path": ".github/pull_request_template.md",
+      "sha256": "e9f15c8d0e54968d8f2fd3f1fd4e69868be68f528c04f67cde73fec4ba29e1a2"
+    },
+    {
+      "mode": "0644",
+      "path": ".github/workflows/celestial-ci.yml",
+      "sha256": "e84eaec0e1c32757d745ac6146031b39bccebec22c94be9b2bd4a4e95f6d807b"
+    },
+    {
+      "mode": "0644",
+      "path": ".github/workflows/celestial-delivery.yml",
+      "render": [
+        "default_branch"
+      ],
+      "sha256": "36e16798631784b1015b3b78664cca29199929e13e0c941d24eaea0ec449e6a2"
+    },
+    {
+      "mode": "0644",
+      "path": ".github/workflows/celestial-monitor.yml",
+      "sha256": "7f042045724981d0bf535463c216d7f05da4b38619b2e982983df9638d9d7e63"
+    },
+    {
+      "mode": "0644",
+      "path": "AGENTS.md",
+      "sha256": "946ad68c613bf24aa86ce36659e2e3e1b66a47272dbf8dacd2cf721d06f9f036"
+    },
+    {
+      "mode": "0644",
+      "path": "CLAUDE.md",
+      "sha256": "946ad68c613bf24aa86ce36659e2e3e1b66a47272dbf8dacd2cf721d06f9f036"
+    },
+    {
+      "mode": "0755",
+      "path": "ci/notify.py",
+      "sha256": "e0805ab9d71cd2ea4791e9ce71bc29838d2ed8e6a033ab93cba5ab8d0e622ab0"
+    },
+    {
+      "mode": "0755",
+      "path": "ci/run",
+      "sha256": "5dd77f35cb5d23161b541e0ee011aedde9eba0efbc98f679bf2d9a45838bb902"
+    },
+    {
+      "mode": "0644",
+      "path": "docs/ci-cd.md",
+      "sha256": "fff57075a56deb986f815cdd7ae92ee1674e94dd1e99fb8c3fdaa3196da88d24"
+    }
+  ],
+  "schema_version": 1,
+  "template": "celestial-cicd-template",
+  "template_version": "1.0.0"
+}

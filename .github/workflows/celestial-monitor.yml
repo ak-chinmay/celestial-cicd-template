@@ -1,0 +1,95 @@
+name: Celestial production monitor
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: Exercise one notification transition
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - failure
+          - recovery
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: celestial-production-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    if: github.event_name == 'workflow_dispatch' || vars.MONITOR_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out smoke and notification clients
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Smoke-test production
+        id: smoke
+        continue-on-error: true
+        env:
+          CELESTIAL_SMOKE_MARKERS: ${{ vars.SMOKE_MARKERS }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: ./ci/run smoke "$PRODUCTION_URL"
+
+      - name: Resolve notification transition
+        id: transition
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_RESULT: ${{ steps.smoke.outcome }}
+          TEST_ALERT: ${{ inputs.test_alert || 'none' }}
+        run: |
+          previous=$(gh run list \
+            --workflow celestial-monitor.yml \
+            --status completed \
+            --limit 1 \
+            --json conclusion \
+            --jq '.[0].conclusion // "unknown"')
+          transition=none
+          if [[ "$TEST_ALERT" == "failure" ]]; then
+            transition=failure
+          elif [[ "$TEST_ALERT" == "recovery" ]]; then
+            transition=recovery
+          elif [[ "$CURRENT_RESULT" != "success" && "$previous" != "failure" ]]; then
+            transition=failure
+          elif [[ "$CURRENT_RESULT" == "success" && "$previous" == "failure" ]]; then
+            transition=recovery
+          fi
+          echo "value=$transition" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Telegram access
+        if: vars.NOTIFICATIONS_ENABLED == 'true' && steps.transition.outputs.value != 'none'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 ci/notify.py --check
+
+      - name: Notify failure transition
+        if: vars.NOTIFICATIONS_ENABLED == 'true' && steps.transition.outputs.value == 'failure'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE: >-
+            ❌ Production monitoring entered failure for ${{ github.repository }}.
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 ci/notify.py --message "$MESSAGE"
+
+      - name: Notify recovery transition
+        if: vars.NOTIFICATIONS_ENABLED == 'true' && steps.transition.outputs.value == 'recovery'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE: ✅ Production monitoring recovered for ${{ github.repository }}.
+        run: python3 ci/notify.py --message "$MESSAGE"
+
+      - name: Preserve monitor failure status
+        if: steps.smoke.outcome != 'success' && inputs.test_alert == 'none'
+        run: exit 1

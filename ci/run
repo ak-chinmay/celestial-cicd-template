@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
+  echo "CI adapter must run inside a Git repository." >&2
+  exit 1
+}
+cd "$ROOT"
+
+ARTIFACT_DIR="$ROOT/.ci/artifact"
+
+has_node_script() {
+  local script_name=$1
+  node -e 'const p=require("./package.json"); process.exit(p.scripts && p.scripts[process.argv[1]] ? 0 : 1)' "$script_name"
+}
+
+verify_node() {
+  [[ -f package-lock.json ]] || {
+    echo "Node verification requires package-lock.json." >&2
+    return 1
+  }
+  npm ci
+  if has_node_script format:check; then npm run format:check; fi
+  if has_node_script lint; then npm run lint; fi
+  has_node_script test || {
+    echo "Node verification requires a test script." >&2
+    return 1
+  }
+  npm test
+  has_node_script build || {
+    echo "Node verification requires a build script." >&2
+    return 1
+  }
+  npm run build
+  local build_dir=""
+  for candidate in dist build out; do
+    if [[ -d "$candidate" ]]; then
+      build_dir=$candidate
+      break
+    fi
+  done
+  [[ -n "$build_dir" ]] || {
+    echo "Node build must create dist/, build/, or out/." >&2
+    return 1
+  }
+  cp -R "$build_dir"/. "$ARTIFACT_DIR"/
+}
+
+verify_python_site() {
+  local requirements=""
+  if [[ -f requirements-dev.txt ]]; then
+    requirements=requirements-dev.txt
+  elif [[ -f requirements.txt ]]; then
+    requirements=requirements.txt
+  else
+    echo "Python verification requires pinned requirements." >&2
+    return 1
+  fi
+  python3 -m pip install -r "$requirements"
+  PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q
+  [[ -d site ]] || {
+    echo "Python adapter requires site/ or project-specific ci/run customization." >&2
+    return 1
+  }
+  cp -R site/. "$ARTIFACT_DIR"/
+}
+
+verify() {
+  rm -rf "$ARTIFACT_DIR"
+  mkdir -p "$ARTIFACT_DIR"
+  if [[ -f package.json ]]; then
+    verify_node
+  elif [[ -f pyproject.toml || -f requirements.txt || -f requirements-dev.txt ]]; then
+    verify_python_site
+  elif [[ -d site ]]; then
+    cp -R site/. "$ARTIFACT_DIR"/
+  else
+    echo "Customize ci/run: no supported locked build contract was detected." >&2
+    return 1
+  fi
+  [[ -n "$(find "$ARTIFACT_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]] || {
+    echo "Verification produced an empty artifact." >&2
+    return 1
+  }
+}
+
+smoke() {
+  local url=${1:-}
+  [[ "$url" =~ ^https://[^[:space:]]+$ ]] || {
+    echo "Smoke test requires an HTTPS production URL." >&2
+    return 1
+  }
+  local response_file
+  response_file=$(mktemp)
+  trap 'rm -f "$response_file"' RETURN
+  local attempt
+  for attempt in 1 2 3; do
+    if curl --fail --silent --location --max-time 15 --output "$response_file" "$url" 2>/dev/null; then
+      break
+    fi
+    if [[ "$attempt" == 3 ]]; then
+      echo "Production smoke request failed after three attempts." >&2
+      return 1
+    fi
+    sleep "$attempt"
+  done
+  if [[ -n "${CELESTIAL_SMOKE_MARKERS:-}" ]]; then
+    local marker
+    IFS=',' read -r -a markers <<< "$CELESTIAL_SMOKE_MARKERS"
+    for marker in "${markers[@]}"; do
+      [[ -n "$marker" ]] || continue
+      grep -Fq -- "$marker" "$response_file" || {
+        echo "Production smoke marker missing." >&2
+        return 1
+      }
+    done
+  fi
+  echo "Production smoke test passed."
+}
+
+case "${1:-}" in
+  verify)
+    [[ $# == 1 ]] || { echo "Usage: ./ci/run verify" >&2; exit 2; }
+    verify
+    ;;
+  smoke)
+    [[ $# == 2 ]] || { echo "Usage: ./ci/run smoke URL" >&2; exit 2; }
+    smoke "$2"
+    ;;
+  *)
+    echo "Usage: ./ci/run verify | ./ci/run smoke URL" >&2
+    exit 2
+    ;;
+esac

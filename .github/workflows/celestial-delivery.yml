@@ -1,0 +1,181 @@
+name: Celestial delivery
+
+on:
+  push:
+    branches:
+      - __CELESTIAL_DEFAULT_BRANCH__
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Full lowercase commit SHA reachable from the default branch
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: celestial-production
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    name: Resolve delivery commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      target_sha: ${{ steps.target.outputs.sha }}
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Validate exact target
+        id: target
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EVENT_NAME: ${{ github.event_name }}
+          MANUAL_SHA: ${{ inputs.target_sha }}
+          PUSH_SHA: ${{ github.sha }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            target_sha=$MANUAL_SHA
+          else
+            target_sha=$PUSH_SHA
+          fi
+          if [[ ! "$target_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Delivery target must be a full lowercase commit SHA." >&2
+            exit 1
+          fi
+          git fetch --force origin "$DEFAULT_BRANCH"
+          git merge-base --is-ancestor "$target_sha" "origin/$DEFAULT_BRANCH"
+          echo "sha=$target_sha" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify delivery artifact
+    needs: resolve
+    uses: ./.github/workflows/celestial-ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.target_sha }}
+      upload_artifact: true
+
+  notification-configuration:
+    name: Validate optional notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Check out trusted notification client
+        if: vars.NOTIFICATIONS_ENABLED == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Validate Telegram access
+        if: vars.NOTIFICATIONS_ENABLED == 'true'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python3 ci/notify.py --check
+
+  deploy:
+    name: Deploy exact verified artifact
+    needs:
+      - resolve
+      - verify
+      - notification-configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - name: Check out exact source for smoke adapter
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.target_sha }}
+
+      - name: Download exact verified artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: celestial-production-${{ needs.resolve.outputs.target_sha }}
+          path: .ci/artifact/
+
+      - name: Set up Node for pinned deployment client
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+
+      - name: Validate deployment configuration
+        env:
+          CLOUDFLARE_PROJECT: ${{ vars.CLOUDFLARE_PROJECT }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          [[ "$CLOUDFLARE_PROJECT" =~ ^[A-Za-z0-9][A-Za-z0-9_-]{0,57}$ ]]
+          [[ "$PRODUCTION_URL" =~ ^https://[^[:space:]]+$ ]]
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PROJECT: ${{ vars.CLOUDFLARE_PROJECT }}
+        run: >-
+          npx --yes wrangler@4.43.0 pages deploy .ci/artifact
+          --project-name "$CLOUDFLARE_PROJECT"
+          --branch production
+
+      - name: Smoke-test production
+        env:
+          CELESTIAL_SMOKE_MARKERS: ${{ vars.SMOKE_MARKERS }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: ./ci/run smoke "$PRODUCTION_URL"
+
+  notify-success:
+    name: Notify delivery success
+    needs:
+      - resolve
+      - deploy
+    if: vars.NOTIFICATIONS_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out exact notification client
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.resolve.outputs.target_sha }}
+
+      - name: Send bounded success notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE: >-
+            ✅ Production delivery succeeded for ${{ github.repository }} at
+            ${{ needs.resolve.outputs.target_sha }}.
+        run: python3 ci/notify.py --message "$MESSAGE"
+
+  notify-failure:
+    name: Notify delivery failure
+    needs:
+      - resolve
+      - verify
+      - notification-configuration
+      - deploy
+      - notify-success
+    if: >-
+      always() && vars.NOTIFICATIONS_ENABLED == 'true' &&
+      contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted notification client
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Send bounded failure notification
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MESSAGE: >-
+            ❌ Production delivery failed for ${{ github.repository }}.
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: python3 ci/notify.py --message "$MESSAGE"
