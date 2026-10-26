@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / ".celestial" / "cicd-template-manifest.json"
-TEMPLATE_VERSION = "1.0.1"
+TEMPLATE_VERSION = "1.0.2"
 MANAGED_FILES = (
     (".ci/.gitignore", "0644", ()),
     (".github/pull_request_template.md", "0644", ()),
@@ -24,6 +24,7 @@ MANAGED_FILES = (
     ("AGENTS.md", "0644", ()),
     ("CLAUDE.md", "0644", ()),
     ("ci/notify.py", "0755", ()),
+    ("ci/read_monitor_state.py", "0755", ()),
     ("ci/run", "0755", ()),
     ("ci/validate_requirements.py", "0755", ()),
     ("docs/ci-cd.md", "0644", ()),

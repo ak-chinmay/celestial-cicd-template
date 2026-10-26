@@ -9,6 +9,7 @@ import stat
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 
@@ -57,6 +58,9 @@ class TemplateTests(unittest.TestCase):
         self.assertIn("git merge-base --is-ancestor", text)
         self.assertIn('CLOUDFLARE_PRODUCTION_BRANCH', text)
         self.assertIn('--branch "$CLOUDFLARE_PRODUCTION_BRANCH"', text)
+        self.assertNotIn("contains(needs.*.result, 'failure')", text)
+        self.assertIn("needs.deploy.result == 'failure'", text)
+        self.assertNotIn("needs.notify-success.result", text)
         self.assertNotIn("pull_request_target", text)
 
     def test_monitor_uses_committed_health_state_not_run_conclusion(self) -> None:
@@ -64,8 +68,53 @@ class TemplateTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("celestial-monitor-state", text)
-        self.assertIn("gh run download", text)
+        self.assertIn("actions/artifacts", text)
+        self.assertIn(".workflow_run.head_branch == $branch", text)
+        self.assertIn("ci/read_monitor_state.py", text)
+        self.assertNotIn("--limit 20", text)
+        self.assertNotIn("gh run list", text)
         self.assertNotIn("--json conclusion", text)
+
+    def test_monitor_state_reader_accepts_only_bounded_exact_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            reader = ROOT / "ci/read_monitor_state.py"
+            valid = root / "valid.zip"
+            with zipfile.ZipFile(valid, "w") as archive:
+                archive.writestr("state", "failure\n")
+            accepted = subprocess.run(
+                ["python3", str(reader), str(valid)],
+                text=True,
+                stdout=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(accepted.returncode, 0)
+            self.assertEqual(accepted.stdout.strip(), "failure")
+
+            for name, content in (
+                ("nested.zip", {"nested/state": "success\n"}),
+                ("oversized.zip", {"state": "x" * 17}),
+                ("invalid.zip", {"state": "unknown\n"}),
+            ):
+                path = root / name
+                with zipfile.ZipFile(path, "w") as archive:
+                    for member, value in content.items():
+                        archive.writestr(member, value)
+                rejected = subprocess.run(
+                    ["python3", str(reader), str(path)],
+                    stdout=subprocess.PIPE,
+                    check=False,
+                )
+                self.assertEqual(rejected.returncode, 1, name)
+
+            symlink = root / "state-link.zip"
+            symlink.symlink_to(valid)
+            rejected_symlink = subprocess.run(
+                ["python3", str(reader), str(symlink)],
+                stdout=subprocess.PIPE,
+                check=False,
+            )
+            self.assertEqual(rejected_symlink.returncode, 1)
 
     def test_static_site_adapter_builds_nonempty_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

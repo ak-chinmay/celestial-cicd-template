@@ -21,12 +21,12 @@
       "render": [
         "default_branch"
       ],
-      "sha256": "ff7fe71101e4e130bbeebf8348cf9bd4ad174e7ab5ab9826f958556176099c83"
+      "sha256": "2c12ee7c2633080d1d653d9484a32c12cf268a853f05f76fca63b504500350d7"
     },
     {
       "mode": "0644",
       "path": ".github/workflows/celestial-monitor.yml",
-      "sha256": "03d8ee5f762e7c8dfb1f7046263c2a77f07a67f0bf5664d11810071a8d23d2d0"
+      "sha256": "2490963c23c642b99157650863025262a6110db5fd333d7393b31f90ac972d60"
     },
     {
       "mode": "0644",
@@ -42,6 +42,11 @@
       "mode": "0755",
       "path": "ci/notify.py",
       "sha256": "e0805ab9d71cd2ea4791e9ce71bc29838d2ed8e6a033ab93cba5ab8d0e622ab0"
+    },
+    {
+      "mode": "0755",
+      "path": "ci/read_monitor_state.py",
+      "sha256": "45f22ab532c0682845a83630793bcbe15b5375c55eacb876056942a8391659f4"
     },
     {
       "mode": "0755",
@@ -61,5 +66,5 @@
   ],
   "schema_version": 1,
   "template": "celestial-cicd-template",
-  "template_version": "1.0.1"
+  "template_version": "1.0.2"
 }

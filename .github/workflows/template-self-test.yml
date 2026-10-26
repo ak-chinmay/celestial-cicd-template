@@ -28,7 +28,7 @@ jobs:
           git diff --exit-code -- .celestial/cicd-template-manifest.json
           python3 -m unittest discover -s tests -v
           bash -n ci/run
-          python3 -m py_compile ci/notify.py ci/validate_requirements.py scripts/build_manifest.py scripts/render_workflow_variants.py tests/test_template.py
+          python3 -m py_compile ci/notify.py ci/read_monitor_state.py ci/validate_requirements.py scripts/build_manifest.py scripts/render_workflow_variants.py tests/test_template.py
 
       - name: Lint raw and adversarially rendered workflows
         env:

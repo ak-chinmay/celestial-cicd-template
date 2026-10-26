@@ -165,7 +165,10 @@ jobs:
       - notify-success
     if: >-
       always() && vars.NOTIFICATIONS_ENABLED == 'true' &&
-      contains(needs.*.result, 'failure')
+      (needs.resolve.result == 'failure' ||
+       needs.verify.result == 'failure' ||
+       needs.notification-configuration.result == 'failure' ||
+       needs.deploy.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
