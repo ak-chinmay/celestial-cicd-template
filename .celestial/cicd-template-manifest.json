@@ -21,7 +21,7 @@
       "render": [
         "default_branch"
       ],
-      "sha256": "179cd94e58b9e009c388bc8fc65870a045efcaf69515ecd5ac9b00b45ef2cff8"
+      "sha256": "dae8824bfaa09430e45f44e9bdd7ab7de89c43d3a2cdcc92855ac87d6dca62b8"
     },
     {
       "mode": "0644",
@@ -56,7 +56,7 @@
     {
       "mode": "0755",
       "path": "ci/run",
-      "sha256": "d0426851717dedaac9e605b4fd1458e73b2b964c0508eaae52159c1c5348e86d"
+      "sha256": "d6bd36eddda5d94113081d730d7e7f4fbabe8b607f00a94e2da9df21aaca8858"
     },
     {
       "mode": "0755",

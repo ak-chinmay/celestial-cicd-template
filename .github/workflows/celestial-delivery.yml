@@ -129,10 +129,12 @@ jobs:
             exit 1
           fi
 
-          echo "labels=$(jq -c '[.[0].labels[].name]' <<< "$matches")" >> "$GITHUB_OUTPUT"
-          echo "pr_number=$(jq -r '.[0].number' <<< "$matches")" >> "$GITHUB_OUTPUT"
-          echo "pr_title=$pr_title" >> "$GITHUB_OUTPUT"
-          echo "status=ready" >> "$GITHUB_OUTPUT"
+          {
+            echo "labels=$(jq -c '[.[0].labels[].name]' <<< "$matches")"
+            echo "pr_number=$(jq -r '.[0].number' <<< "$matches")"
+            echo "pr_title=$pr_title"
+            echo "status=ready"
+          } >> "$GITHUB_OUTPUT"
 
   deploy:
     name: Deploy exact verified artifact
@@ -248,9 +250,11 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --json url \
               --jq .url)
-            echo "created=false" >> "$GITHUB_OUTPUT"
-            echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
-            echo "status=existing" >> "$GITHUB_OUTPUT"
+            {
+              echo "created=false"
+              echo "release_url=$release_url"
+              echo "status=existing"
+            } >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -272,9 +276,11 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --json url \
             --jq .url)
-          echo "created=true" >> "$GITHUB_OUTPUT"
-          echo "release_url=$release_url" >> "$GITHUB_OUTPUT"
-          echo "status=created" >> "$GITHUB_OUTPUT"
+          {
+            echo "created=true"
+            echo "release_url=$release_url"
+            echo "status=created"
+          } >> "$GITHUB_OUTPUT"
 
   notify-success:
     name: Notify delivery success
