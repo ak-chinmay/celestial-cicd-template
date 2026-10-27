@@ -63,6 +63,43 @@ class TemplateTests(unittest.TestCase):
         self.assertNotIn("needs.notify-success.result", text)
         self.assertNotIn("pull_request_target", text)
 
+    def test_delivery_releases_only_after_smoke_with_least_privilege(self) -> None:
+        text = (ROOT / ".github/workflows/celestial-delivery.yml").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertLess(
+            text.index("- name: Smoke-test production"), text.index("  release:")
+        )
+        context_job = text[text.index("  release_context:") : text.index("  deploy:")]
+        release_job = text[text.index("  release:") : text.index("  notify-success:")]
+        notification_jobs = text[text.index("  notify-success:") :]
+
+        self.assertIn("pull-requests: read", context_job)
+        self.assertIn("contents: write", release_job)
+        self.assertNotIn("pull-requests: read", release_job)
+        self.assertIn("/commits/${TARGET_SHA}/pulls?per_page=100", text)
+        self.assertIn(".merge_commit_sha == $sha", text)
+        self.assertIn("needs.release_context.outputs.status == 'ready'", text)
+        self.assertIn("persist-credentials: false", text)
+        self.assertIn('--title "$PR_TITLE"', text)
+        self.assertIn("--generate-notes", text)
+        self.assertIn('status=skipped', text)
+        self.assertIn('git rev-list -n 1 "$VERSION"', text)
+        self.assertIn("already points to another commit", text)
+        self.assertIn('gh release view "$VERSION"', text)
+        self.assertIn("--verify-tag", text)
+        self.assertIn('--target "$TARGET_SHA"', text)
+        self.assertIn("needs.release_context.result == 'failure'", text)
+        self.assertIn("needs.release.result == 'failure'", text)
+        self.assertNotRegex(text, r"(?m)^\s+--notes(?:\s|$)")
+
+        self.assertIn('PR: %s\\nRelease: %s\\nProduction: %s', notification_jobs)
+        self.assertIn("needs.release_context.outputs.pr_title", notification_jobs)
+        self.assertIn("needs.release.outputs.release_url", notification_jobs)
+        self.assertIn("PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}", notification_jobs)
+        self.assertNotIn("target_sha", notification_jobs)
+
     def test_monitor_uses_committed_health_state_not_run_conclusion(self) -> None:
         text = (ROOT / ".github/workflows/celestial-monitor.yml").read_text(
             encoding="utf-8"

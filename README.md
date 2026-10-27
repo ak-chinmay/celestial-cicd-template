@@ -10,9 +10,10 @@ Projects expose one local verification contract:
 ```
 
 The template provides reusable pull-request CI, exact-artifact Cloudflare Pages
-delivery, post-deployment smoke tests, optional Telegram notifications, and
-transition-aware production monitoring. Third-party Actions are pinned to full
-commit SHAs and jobs use least-privilege permissions.
+delivery, post-deployment smoke tests, idempotent semantic GitHub Releases,
+optional Telegram notifications, and transition-aware production monitoring.
+Third-party Actions are pinned to full commit SHAs and jobs use least-privilege
+permissions.
 
 Normal installation is performed from the Celestial source repository:
 
