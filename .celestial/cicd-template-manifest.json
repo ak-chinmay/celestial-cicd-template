@@ -21,7 +21,7 @@
       "render": [
         "default_branch"
       ],
-      "sha256": "2c12ee7c2633080d1d653d9484a32c12cf268a853f05f76fca63b504500350d7"
+      "sha256": "dae8824bfaa09430e45f44e9bdd7ab7de89c43d3a2cdcc92855ac87d6dca62b8"
     },
     {
       "mode": "0644",
@@ -50,8 +50,13 @@
     },
     {
       "mode": "0755",
+      "path": "ci/release_version.py",
+      "sha256": "418ee5317de0a6ef983cf0c46e78c3a32ea27e995809701beb23a48dcac52073"
+    },
+    {
+      "mode": "0755",
       "path": "ci/run",
-      "sha256": "d0426851717dedaac9e605b4fd1458e73b2b964c0508eaae52159c1c5348e86d"
+      "sha256": "d6bd36eddda5d94113081d730d7e7f4fbabe8b607f00a94e2da9df21aaca8858"
     },
     {
       "mode": "0755",
@@ -61,10 +66,10 @@
     {
       "mode": "0644",
       "path": "docs/ci-cd.md",
-      "sha256": "69ae3dc88966448d5c2a81bc7901c38ad6795b42b9773deaa6fd57316965d2e3"
+      "sha256": "fc6f72c22b821a07ff5244f46db425bdb98f2ad05243606d5dc48937dfe1ce1c"
     }
   ],
   "schema_version": 1,
   "template": "celestial-cicd-template",
-  "template_version": "1.0.2"
+  "template_version": "1.1.0"
 }

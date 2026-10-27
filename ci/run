@@ -66,10 +66,37 @@ verify_python_site() {
   cp -R site/. "$ARTIFACT_DIR"/
 }
 
+verify_template_repository() {
+  local manifest_before manifest_after
+
+  manifest_before=$(python3 -c \
+    'import hashlib, pathlib; print(hashlib.sha256(pathlib.Path(".celestial/cicd-template-manifest.json").read_bytes()).hexdigest())')
+  python3 scripts/build_manifest.py
+  manifest_after=$(python3 -c \
+    'import hashlib, pathlib; print(hashlib.sha256(pathlib.Path(".celestial/cicd-template-manifest.json").read_bytes()).hexdigest())')
+  [[ "$manifest_before" == "$manifest_after" ]] || {
+    echo "Template manifest was stale; rebuild and commit it." >&2
+    return 1
+  }
+
+  PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v
+  bash -n ci/run
+  python3 -m py_compile \
+    ci/notify.py ci/read_monitor_state.py ci/release_version.py \
+    ci/validate_requirements.py scripts/build_manifest.py \
+    scripts/render_workflow_variants.py tests/test_release_version.py \
+    tests/test_template.py
+  cp .celestial/cicd-template-manifest.json "$ARTIFACT_DIR"/
+}
+
 verify() {
   rm -rf "$ARTIFACT_DIR"
   mkdir -p "$ARTIFACT_DIR"
-  if [[ -f package.json ]]; then
+  if [[ -f .celestial/cicd-template-manifest.json &&
+        -f scripts/build_manifest.py &&
+        -f tests/test_template.py ]]; then
+    verify_template_repository
+  elif [[ -f package.json ]]; then
     verify_node
   elif [[ -f pyproject.toml || -f requirements.txt || -f requirements-dev.txt ]]; then
     verify_python_site

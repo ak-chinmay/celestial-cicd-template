@@ -70,6 +70,42 @@ Use the delivery workflow's `workflow_dispatch` input with a full lowercase
 commit SHA reachable from the default branch. The workflow refuses abbreviated,
 foreign, or unverified commits and never rebuilds inside the deployment job.
 
+## GitHub releases
+
+After deployment and the production smoke test succeed, the delivery workflow
+looks up the merged pull request whose merge commit is the exact delivery SHA.
+When exactly one pull request targets the repository default branch, the
+workflow creates an idempotent GitHub Release. The pull request title becomes
+the release title, while GitHub-generated release notes provide the changelog.
+
+Release versions use semantic tags. Add one optional pull request label to
+choose the next increment:
+
+```text
+release:major
+release:minor
+release:patch
+```
+
+With no release label, the workflow increments the patch version. The first
+release is `v0.1.0`. On a new target, conflicting release labels fail before
+creating a tag.
+Rerunning delivery for a SHA that already has a semantic tag reuses that tag;
+an existing release is left unchanged, and a matching tag without a release is
+published with that tag.
+
+Direct pushes and manual recovery targets without exactly one matching merged
+pull request still deploy successfully, but release creation is skipped and
+the reason is written to the workflow summary. No additional secret or
+repository variable is required; the release job uses the workflow's scoped
+`GITHUB_TOKEN`. The context job receives `pull-requests: read`, while only the
+publishing job receives `contents: write`.
+
+Telegram delivery notifications include the merged pull request number and
+title, the release version and URL (or an explicit skipped/not-published
+status), and the production URL. Failure notifications also include the
+workflow run URL. Commit SHAs are intentionally omitted from these messages.
+
 ## Template updates
 
 Run the same Celestial installation command again. Files unchanged since their
